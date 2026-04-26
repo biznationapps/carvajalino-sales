@@ -188,6 +188,35 @@
   <div id="brand-list" style="padding:0 14px 100px"></div>
 </div>
 
+<div id="cat-ideas" class="catpage">
+  <div class="page-hd">
+    <h1>💡 <em>Ideas</em></h1>
+    <p style="font-size:12px;color:var(--t3);margin:0 0 12px">Estrategias, campañas y acercamientos comerciales generados por AI para las Carvajalino Sisters</p>
+  </div>
+
+  <!-- Category chips -->
+  <div style="padding:0 14px;display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none">
+    <button class="chip on" onclick="ideaFilter('all',this)">✨ Todas</button>
+    <button class="chip" onclick="ideaFilter('evento',this)">🎪 Evento Propio</button>
+    <button class="chip" onclick="ideaFilter('partner',this)">🤝 Partnerships</button>
+    <button class="chip" onclick="ideaFilter('contenido',this)">📱 Contenido</button>
+    <button class="chip" onclick="ideaFilter('campaign',this)">🚀 Campañas</button>
+    <button class="chip" onclick="ideaFilter('bureau',this)">🎤 Bureaus</button>
+    <button class="chip" onclick="ideaFilter('latam',this)">🌎 LATAM</button>
+  </div>
+
+  <!-- Generate button -->
+  <div style="padding:0 14px 12px">
+    <button onclick="generateIdea()" id="gen-btn"
+      style="width:100%;padding:13px;background:linear-gradient(135deg,#1A5E38,#0a3d22);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit">
+      <span id="gen-icon">✨</span> <span id="gen-txt">Generar nueva idea con AI</span>
+    </button>
+  </div>
+
+  <!-- Ideas list -->
+  <div id="ideas-list" style="padding:0 14px 100px"></div>
+</div>
+
 <div id="cat-pipeline" class="catpage">
 
   <!-- Dashboard header -->
@@ -290,6 +319,7 @@
   <button class="ntab" id="nav-pipeline" onclick="navTo('pipeline',this)"><span class="ni">📊</span><span class="nl">Pipeline</span></button>
   <button class="ntab" id="nav-search" onclick="navTo('search',this)"><span class="ni">📋</span><span class="nl">Contactos</span></button>
   <button class="ntab" id="nav-export" onclick="navTo('export',this)"><span class="ni">📥</span><span class="nl">Exportar</span></button>
+  <button class="ntab" id="nav-ideas" onclick="navTo('ideas',this)"><span class="ni">💡</span><span class="nl">Ideas</span></button>
 </nav>
 </div>
 <div class="overlay" id="ov" onclick="closeSheet()"></div>
@@ -1236,6 +1266,7 @@ navTo = function(cat,btn){
   if(cat==='pipeline') plRender();
   if(cat==='brand') brandRender();
   if(cat==='nextgen') ngRender();
+  if(cat==='ideas') renderIdeas();
 };
 
 const STAGES = [
@@ -1831,6 +1862,314 @@ document.addEventListener('DOMContentLoaded', function(){
     console.error('Init error:', e.message, e.stack);
   }
 });
+
+// ═══════════════════════════════════════════════════
+// IDEAS ENGINE
+// ═══════════════════════════════════════════════════
+
+// Pre-loaded ideas bank
+const IDEAS_BANK = [
+  {
+    cat: 'evento',
+    title: 'AI Speaker Summit — Co-organizado con Microsoft',
+    hook: '🔥 La idea más warm que tienen',
+    body: 'Organizar un "AI for Business Leaders Summit" de medio día co-branded con Microsoft. Las hermanas son partners oficiales de Microsoft — esa relación ya existe. El evento invita a 40-60 ejecutivos de bureaus de speakers, event planners y HR Directors. Microsoft pone el logo y el espacio (tienen offices en Miami, NY, DC). Las Carvajalino ponen el contenido. El bureau que co-organice tiene acceso exclusivo a los speakers más calientes en AI del mercado latino.',
+    action: 'Contactar al Microsoft partner manager existente esta semana. Proponer Q3 2026. Venue: Microsoft Miami o NYC office.',
+    partner: 'Microsoft (relación existente)',
+    timeline: '3-4 meses para organizar',
+    wow: '⭐ El logo de Microsoft en el flyer hace que todos vengan.'
+  },
+  {
+    cat: 'evento',
+    title: 'LinkedIn NewFronts — Pitch para ser las próximas MCs',
+    hook: '🎯 Exactamente lo que hizo Corporate Natalie',
+    body: 'LinkedIn invitó a Corporate Natalie (1M followers, LinkedIn Top Voice) como MC de sus NewFronts NYC. Las Carvajalino tienen ese perfil multiplicado: Forbes 30U30 + AI + 1M+ followers + bilingüe. La estrategia: contactar a Taylor Gessell y Chas Stahl (el equipo de LinkedIn Events que organizó los NewFronts 2025) y hacer un pitch específico para NewFronts 2026 o el próximo evento LinkedIn Live de gran escala.',
+    action: 'Buscar a Taylor Gessell y Chas Stahl en LinkedIn. Mensaje directo esta semana. Adjuntar sizzle reel.',
+    partner: 'LinkedIn Events Team',
+    timeline: 'Contactar inmediato — NewFronts 2026 es en mayo',
+    wow: '⭐ LinkedIn necesita hosts bilingüe para su audiencia en español que está creciendo exponencialmente.'
+  },
+  {
+    cat: 'partner',
+    title: 'Forbes Alumni Network — Evento co-branded',
+    hook: '💎 Usan lo que ya tienen',
+    body: 'Las hermanas SON Forbes 30U30 alumni. Forbes organiza cumbres y eventos todo el año donde los alumni son speakers prioritarios. La movida: proponer a Forbes un "Forbes x Carvajalino: AI Leadership Summit" — medio día, 50 personas, enfocado en líderes empresariales latinos. Forbes pone el brand, las hermanas ponen el contenido y la convocatoria. Los bureaus asisten porque Forbes = legitimidad instantánea.',
+    action: 'Contactar al editor de Forbes LATAM (brandpartnerships@forbes.com) y al Forbes 30U30 alumni team. Propuesta formal en dos semanas.',
+    partner: 'Forbes Media',
+    timeline: '2-3 meses',
+    wow: '⭐ "Forbes + Carvajalino" en el subject line de la invitación = 80%+ open rate garantizado.'
+  },
+  {
+    cat: 'partner',
+    title: 'Premiere Speakers Bureau como CO-ORGANIZADOR (no target)',
+    hook: '🔄 Flip the script — hazlos partners, no clientes',
+    body: 'En vez de hacer pitch a Premiere para que las representen, proponerles CO-ORGANIZAR el evento. El pitch: "Ustedes traen a sus clientes corporativos (los que contratan speakers), nosotras traemos el contenido de AI más relevante del año. El evento es gratuito para sus clientes. Ustedes quedan como el bureau que les conectó con las tendencias más importantes." Premiere tiene incentivo real: fidelizar a sus clientes corporativos con contenido de valor.',
+    action: 'Email directo a agents@premierespeakers.com. Propuesta de co-organización, no de representación.',
+    partner: 'Premiere Speakers Bureau',
+    timeline: '6-8 semanas para organizar',
+    wow: '⭐ Premiere llena la sala con sus clientes — exactamente la audiencia que las hermanas necesitan conocer.'
+  },
+  {
+    cat: 'campaign',
+    title: '"The AI Speaker" — Serie de contenido para bureaus',
+    hook: '📹 Posicionarse como LA referencia de AI para bureaus',
+    body: 'Crear una mini-serie de 5 videos cortos (2-3 min) específicamente para bureaus de speakers: "Lo que tus clientes corporativos van a pedir en 2026 y 2027." Cada video cubre un tema: AI para RRHH, AI para ventas, AI para finanzas, AI para healthcare, AI para gobierno. Las hermanas aparecen como la fuente de expertise. Se distribuye directamente a los agentes de bureaus vía LinkedIn DM y email. El call-to-action: "¿Quieren a las expertas para el próximo evento de sus clientes?"',
+    action: 'Producir los 5 videos en 2 sesiones de grabación. Distribuir a lista de 36 bureaus del app.',
+    partner: 'Producción interna + distribución directa',
+    timeline: '3-4 semanas para producir',
+    wow: '⭐ Los bureaus comparten contenido de valor con sus clientes — las hermanas llegan a audiencias que nunca podrían contactar directamente.'
+  },
+  {
+    cat: 'campaign',
+    title: '"94% en 4 horas" — Campaña de prueba social',
+    hook: '📊 El número más poderoso que tienen',
+    body: 'Construir una campaña completa alrededor del dato del CAF: 94% de los 28 ejecutivos aplicaron las herramientas de AI de inmediato. Este número va en: subject lines de emails, bio de LinkedIn, one-pager, propuestas, pitch decks. La campaña complementaria: conseguir 2-3 testimoniales en video de los participantes del CAF. Un ejecutivo del CAF diciendo "94%" en cámara vale más que cualquier credencial.',
+    action: 'Contactar al equipo del CAF esta semana para pedir 2 testimoniales en video. Desplegar el número en todos los canales.',
+    partner: 'CAF (cliente existente)',
+    timeline: '2 semanas',
+    wow: '⭐ Los testimoniales de un banco de desarrollo multilateral son imbatibles en cualquier pitch corporativo.'
+  },
+  {
+    cat: 'contenido',
+    title: '"¿Sabes cómo tu empresa puede usar AI?" — Serie TikTok/Reels para HR Directors',
+    hook: '🎯 Llegar directamente al que toma la decisión',
+    body: 'Los HR Directors y L&D Managers son quienes deciden contratar speakers para sus equipos. Crear una serie de 10 videos cortísimos (30-45 seg) dirigidos específicamente a ellos: "Si eres director de RRHH y estás pensando en AI para tu equipo, este video es para ti." Cada video termina con un CTA específico: "Hablemos de cómo hacer esto en tu empresa." El algoritmo de TikTok/Instagram los va a llevar exactamente a esa audiencia.',
+    action: 'Definir los 10 temas. Grabar en 2 días. Publicar 3 por semana durante 3 semanas.',
+    partner: 'Producción interna',
+    timeline: '3 semanas',
+    wow: '⭐ Los HR Directors hacen scroll en LinkedIn e Instagram igual que todos. Esto los encuentra donde están.'
+  },
+  {
+    cat: 'bureau',
+    title: 'Speaker Showcase — Evento virtual para 15 bureaus simultáneamente',
+    hook: '⚡ Escala máxima, costo mínimo',
+    body: 'Organizar un "Private Speaker Showcase" virtual de 45 minutos exclusivamente para agentes de bureaus — máximo 20 personas. Las hermanas dan una demo de su mejor charla de 20 minutos, luego 15 minutos de Q&A. Se invita a los 15 bureaus más importantes del mercado. La exclusividad ("solo para bureaus, no es público") hace que vengan. Se graba (con permiso) y se usa como material de prospección.',
+    action: 'Seleccionar fecha en junio 2026. Invitación directa a los 36 bureaus del app. Plataforma: Zoom o StreamYard.',
+    partner: 'Sin partner necesario — las hermanas son el evento',
+    timeline: '4-6 semanas para organizar',
+    wow: '⭐ Los bureaus raramente ven un showcase así de focused. La exclusividad es el gancho.'
+  },
+  {
+    cat: 'latam',
+    title: 'Gira LATAM de AI — Colombia, México, Perú en 10 días',
+    hook: '🌎 Home turf + máximo impacto',
+    body: 'Organizar una gira de 10 días por Bogotá, Ciudad de México y Lima con 3 eventos de medio día cada uno, co-organizados con ANDI (Colombia), Consejo Coordinador Empresarial (México) y IPAE (Perú). Cada evento tiene 80-120 asistentes — CEOs y directivos de empresas familiares top. La gira se documenta en contenido para 3 meses. El resultado: presencia LATAM comprobada que abre bureaus y eventos internacionales.',
+    action: 'Contactar a ANDI Colombia (comunicaciones@andi.com.co), COPARMEX México, e IPAE Perú (contacto@ipae.pe) para proponer co-organización Q4 2026.',
+    partner: 'ANDI + COPARMEX + IPAE',
+    timeline: '4-5 meses para organizar',
+    wow: '⭐ Una gira LATAM documentada es el mejor pitch para cualquier bureau internacional.'
+  },
+  {
+    cat: 'evento',
+    title: 'Cena Íntima para Bureau Executives — "The AI Future of Speaking"',
+    hook: '🍽️ Exclusividad que el formato grande no puede dar',
+    body: 'Una cena para 20 personas máximo: 10 agentes de los bureaus más importantes + 10 event planners / HR Directors de Fortune 500. Las hermanas no presentan — FACILITAN la conversación. El tema: "¿Qué van a pedir sus clientes corporativos en AI para los próximos 24 meses?" Las hermanas son las expertas en la sala, pero no se venden — agregan valor. Al final: todos saben quiénes son y qué hacen. Sin pitch, máximo impacto.',
+    action: 'Venue: restaurante privado en Miami o NYC. Patrocinador del costo: Microsoft o IBM (pueden justificar como evento de partners). Lista: los top 10 bureaus del app + 10 HR Directors de empresas Fortune 500 en Miami.',
+    partner: 'Microsoft o IBM como sponsor del costo del evento',
+    timeline: '6-8 semanas',
+    wow: '⭐ Los bureaus reciben invitaciones a eventos todo el tiempo. Una cena íntima con 20 personas seleccionadas es diferente.'
+  },
+  {
+    cat: 'campaign',
+    title: 'El "State of AI Speaking" Report — Primer reporte del mercado',
+    hook: '📋 Convertirse en la fuente de datos del sector',
+    body: 'Crear el primer "State of AI Speaking 2026" — un reporte de 10 páginas sobre qué están pidiendo las empresas Fortune 500 en speakers de AI, qué temas convierten mejor, y cuáles son las tendencias para 2027. Las hermanas lo firman como autoras. Se distribuye gratis a todos los bureaus, event planners y HR Directors. El reporte se basa en sus propias experiencias + datos públicos disponibles. Quien publica el reporte define la conversación.',
+    action: 'Escribir el reporte en 2 semanas. Diseñarlo profesionalmente. Distribuir a los 36 bureaus + lista de email de HR Directors.',
+    partner: 'Producción interna + distribución digital',
+    timeline: '3-4 semanas',
+    wow: '⭐ Los bureaus citan el reporte con sus clientes. Las hermanas se convierten en la referencia del sector.'
+  },
+  {
+    cat: 'partner',
+    title: 'Anthropic / Claude — Brand Ambassador Deal',
+    hook: '🤖 El partnership más alineado que existe',
+    body: 'Las hermanas usan Claude para construir su app de ventas. Son exactamente el tipo de AI educator que Anthropic quiere como embajadoras: bilingüe, latinoamericana, Forbes 30U30, 100K+ entrenados. El pitch a Anthropic: "Brand ambassador + speaker en eventos Anthropic + co-creación de contenido educativo en español para LATAM." Anthropic necesita presencia en mercados hispanohablantes. Las hermanas son el acceso más natural que pueden tener.',
+    action: 'Email a partnerships@anthropic.com esta semana. Subject: "AI Educators for LATAM — Brand Partnership Proposal."',
+    partner: 'Anthropic',
+    timeline: '4-6 semanas para negociar',
+    wow: '⭐ Un deal con Anthropic/Claude pone a las hermanas en el mismo nivel que los top AI educators del mundo.'
+  },
+  {
+    cat: 'latam',
+    title: 'CAF — Programa Anual de AI para Empresa Familiar LATAM',
+    hook: '⭐ Cliente existente = llamada, no pitch',
+    body: 'El CAF ya es cliente (workshop Copilot Pro Max, 94% de adopción). La movida: proponer un programa anual de 4-6 workshops de AI para los miembros de CAF en toda la región. No un evento — un programa. CAF tiene acceso a las 500 empresas más grandes de LATAM. Un programa anual con CAF = 6-10 eventos garantizados + credibilidad regional instantánea + caso de estudio para todos los bureaus.',
+    action: 'Llamada directa al contacto existente del CAF esta semana. Propuesta de programa anual 2026-2027.',
+    partner: 'CAF (cliente existente — relación warm)',
+    timeline: '2-4 semanas para negociar',
+    wow: '⭐ Esta es la llamada más importante que pueden hacer. La relación ya existe.'
+  },
+  {
+    cat: 'contenido',
+    title: '"De 0 a 100K" — Documental corto de las hermanas',
+    hook: '🎬 El story que nadie más puede contar',
+    body: 'Un mini-documental de 8-10 minutos sobre cómo tres hermanas colombianas entrenaron a 100,000 personas en AI. Narrado por ellas, sin guión corporativo. El documental va en YouTube, LinkedIn y se envía a todos los bureaus como el "sizzle reel definitivo". Este tipo de contenido hace que los event planners llamen sin que nadie haga outreach. La autenticidad es el diferenciador.',
+    action: 'Contratar un camarógrafo para 1 día de grabación en Miami. Edición: 1 semana. Distribución: LinkedIn + YouTube + email directo a 36 bureaus.',
+    partner: 'Producción audiovisual externa',
+    timeline: '3-4 semanas',
+    wow: '⭐ Los bureaus reciben sizzle reels todo el tiempo. Un documental auténtico de 10 minutos es otra categoría.'
+  },
+];
+
+let currentFilter = 'all';
+let savedIdeas = JSON.parse(localStorage.getItem('cj_saved_ideas') || '[]');
+let generatedIdeas = JSON.parse(localStorage.getItem('cj_gen_ideas') || '[]');
+
+function ideaFilter(cat, btn) {
+  currentFilter = cat;
+  document.querySelectorAll('#cat-ideas .chip').forEach(c => c.classList.remove('on'));
+  btn.classList.add('on');
+  renderIdeas();
+}
+
+function saveIdea(id) {
+  if (!savedIdeas.includes(id)) {
+    savedIdeas.push(id);
+    localStorage.setItem('cj_saved_ideas', JSON.stringify(savedIdeas));
+    toast('💡 Idea guardada');
+    renderIdeas();
+  }
+}
+
+function unsaveIdea(id) {
+  savedIdeas = savedIdeas.filter(x => x !== id);
+  localStorage.setItem('cj_saved_ideas', JSON.stringify(savedIdeas));
+  renderIdeas();
+}
+
+function buildIdeaCard(idea, idx) {
+  const isSaved = savedIdeas.includes(idea.id || idx);
+  const catColors = {
+    evento: '#F59E0B', partner: '#3B82F6', contenido: '#8B5CF6',
+    campaign: '#EF4444', bureau: '#1A5E38', latam: '#0E7490'
+  };
+  const catLabels = {
+    evento: '🎪 Evento Propio', partner: '🤝 Partnership', contenido: '📱 Contenido',
+    campaign: '🚀 Campaña', bureau: '🎤 Bureau', latam: '🌎 LATAM'
+  };
+  const color = catColors[idea.cat] || '#6B7280';
+  const id = idea.id || `idea_${idx}`;
+
+  return `<div style="background:var(--card);border-radius:14px;border:1px solid var(--bd);border-left:3px solid ${color};padding:14px;margin-bottom:12px">
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px">
+      <div>
+        <span style="font-size:10px;font-weight:700;background:${color}22;color:${color};padding:2px 8px;border-radius:100px">${catLabels[idea.cat]||idea.cat}</span>
+        ${idea.hook?`<div style="font-size:11px;color:#F5C842;margin-top:4px;font-weight:600">${idea.hook}</div>`:''}
+      </div>
+      <button onclick="(()=>{const id='${id}';savedIdeas.includes(id)?unsaveIdea(id):saveIdea(id)})()" 
+        style="background:none;border:none;font-size:20px;cursor:pointer;flex-shrink:0">${isSaved?'💛':'🤍'}</button>
+    </div>
+
+    <!-- Title -->
+    <div style="font-size:15px;font-weight:800;color:var(--t1);line-height:1.3;margin-bottom:8px">${idea.title}</div>
+
+    <!-- Body -->
+    <div style="font-size:12px;color:var(--t2);line-height:1.6;margin-bottom:10px">${idea.body}</div>
+
+    <!-- Action -->
+    <div style="background:rgba(26,94,56,.08);border-radius:9px;padding:10px 12px;margin-bottom:8px">
+      <div style="font-size:10px;font-weight:700;color:#1A5E38;margin-bottom:4px">⚡ ACCIÓN INMEDIATA</div>
+      <div style="font-size:11px;color:var(--t2);line-height:1.5">${idea.action}</div>
+    </div>
+
+    <!-- Meta row -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${idea.partner?`<div style="font-size:10px;background:rgba(255,255,255,.06);border-radius:6px;padding:4px 8px;color:var(--t3)">🤝 ${idea.partner}</div>`:''}
+      ${idea.timeline?`<div style="font-size:10px;background:rgba(255,255,255,.06);border-radius:6px;padding:4px 8px;color:var(--t3)">⏱ ${idea.timeline}</div>`:''}
+    </div>
+
+    ${idea.wow?`<div style="margin-top:8px;font-size:11px;color:#F5C842;font-weight:600">${idea.wow}</div>`:''}
+  </div>`;
+}
+
+function renderIdeas() {
+  const allIdeas = [...IDEAS_BANK.map((o,i) => ({...o, id:`bank_${i}`})), ...generatedIdeas];
+  const filtered = currentFilter === 'all' ? allIdeas : allIdeas.filter(o => o.cat === currentFilter);
+  
+  // Saved first, then rest
+  const saved = filtered.filter(o => savedIdeas.includes(o.id));
+  const unsaved = filtered.filter(o => !savedIdeas.includes(o.id));
+  const sorted = [...saved, ...unsaved];
+
+  const list = document.getElementById('ideas-list');
+  if (!list) return;
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--t3);font-size:13px">No hay ideas en esta categoría todavía.<br>Genera una nueva con el botón de arriba.</div>';
+    return;
+  }
+
+  let html = '';
+  if (saved.length > 0) {
+    html += `<div style="font-size:10px;font-weight:700;color:#F5C842;margin-bottom:8px;letter-spacing:.08em">💛 GUARDADAS (${saved.length})</div>`;
+    html += saved.map((o, i) => buildIdeaCard(o, i)).join('');
+    html += `<div style="font-size:10px;font-weight:700;color:var(--t3);margin:12px 0 8px;letter-spacing:.08em">TODAS LAS IDEAS</div>`;
+  }
+  html += unsaved.map((o, i) => buildIdeaCard(o, saved.length + i)).join('');
+  list.innerHTML = html;
+}
+
+async function generateIdea() {
+  const btn = document.getElementById('gen-btn');
+  const icon = document.getElementById('gen-icon');
+  const txt = document.getElementById('gen-txt');
+  
+  btn.disabled = true;
+  icon.textContent = '⏳';
+  txt.textContent = 'Generando idea...';
+
+  const categories = ['evento propio', 'partnership estratégico', 'campaña de contenido', 'acercamiento a bureaus', 'estrategia LATAM', 'campaña de marca personal'];
+  const randomCat = categories[Math.floor(Math.random() * categories.length)];
+
+  const prompt = `Eres un estratega de ventas y marketing para las Hermanas Carvajalino (Karen, Daniela, Stephanie). Son Forbes 30U30, educadoras de AI que han entrenado 100,000+ profesionales en 9 países. Partners: Microsoft, IBM, CAF. Bilingues EN/ES. 1M+ seguidores. Basadas en Miami.
+
+OBJETIVO: Conseguir más brand deals, speaking gigs y representación de bureaus.
+
+Genera UNA idea creativa y accionable en la categoría: "${randomCat}".
+
+Responde SOLO en este formato JSON exacto (sin markdown, sin texto adicional):
+{
+  "cat": "[evento|partner|contenido|campaign|bureau|latam]",
+  "title": "[título corto y poderoso, max 60 chars]",
+  "hook": "[frase de gancho, empieza con emoji, max 50 chars]",
+  "body": "[descripción de 100-150 palabras, específica y accionable]",
+  "action": "[acción concreta para esta semana, específica, max 80 words]",
+  "partner": "[partner específico sugerido, max 40 chars]",
+  "timeline": "[tiempo realista para ejecutar]",
+  "wow": "[el factor WOW — por qué esto es diferente, empieza con ⭐]"
+}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    const idea = JSON.parse(clean);
+    idea.id = `gen_${Date.now()}`;
+    idea.generated = true;
+    generatedIdeas.unshift(idea);
+    localStorage.setItem('cj_gen_ideas', JSON.stringify(generatedIdeas.slice(0, 50)));
+    icon.textContent = '✨';
+    txt.textContent = 'Generar nueva idea con AI';
+    btn.disabled = false;
+    renderIdeas();
+    toast('💡 Nueva idea generada');
+  } catch(e) {
+    icon.textContent = '✨';
+    txt.textContent = 'Generar nueva idea con AI';
+    btn.disabled = false;
+    toast('Error generando idea — intenta de nuevo');
+  }
+}
 </script>
 </body>
 </html>
