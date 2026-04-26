@@ -317,6 +317,7 @@ function loadSt(id){try{return localStorage.getItem('se3_'+id)||null}catch(e){re
 function loadDiscard(id){try{return localStorage.getItem('se3d_'+id)==='1'}catch(e){return false}}
 function saveSt(id,st){
   try{localStorage.setItem('se3_'+id,st)}catch(e){}
+  plSaveDate(id,new Date().toLocaleDateString('es-MX',{month:'short',day:'numeric'}));
   const o=OPPS.find(x=>x.id===id);
   if(o){o.status=st;if(['ai','host','corp'].includes(o.cat)){renderCat(o.cat,curFlt[o.cat]||'all');updateStats(o.cat);}}
 }
@@ -360,6 +361,8 @@ function updateStats(cat){
 
 function renderCat(cat,filter){
   curFlt[cat]=filter;
+  // Apply user priority overrides
+  OPPS.forEach(o=>{const mp=loadMyPrio(o.id);o._myPrio=mp?parseInt(mp):null;});
   let data=OPPS.filter(o=>o.cat===cat&&!o.discarded);
   const discCount=OPPS.filter(o=>o.cat===cat&&o.discarded).length;
   if(showDiscarded[cat]) data=OPPS.filter(o=>o.cat===cat);
@@ -602,7 +605,7 @@ ${d.proTip?'<div class="tip-bar">\ud83d\udca1 '+d.proTip+'</div>':''}
 <div class="em-card"><div class="em-body">${d.linkedinMsg||''}</div></div>
 <button class="btn btn-s" style="width:100%;margin-top:8px;padding:11px" id="cp-l">\ud83d\udccb Copiar LinkedIn</button>
 </div>`;
-  const wire=(id,key,msg)=>{const el=document.getElementById(id);if(el)el.onclick=()=>cp(shE[key],msg);};
+  const wire=(id,key,msg)=>{const elBtn=document.getElementById(id);if(elBtn)elBtn.onclick=()=>cp(shE[key],msg);};
   wire('cp-b','booking','\u2713 Booking email copiado');
   wire('cp-f','followup','\u2713 Follow-up copiado');
   wire('cp-l','linkedin','\u2713 LinkedIn copiado');
@@ -713,7 +716,7 @@ function renderDS(d){
     <button class="btn btn-s" style="width:100%;margin-top:8px;padding:11px" id="dcp-l">\ud83d\udccb Copiar LinkedIn</button>
   </div>
 </div>`;
-  const wire=(id,key,msg)=>{const el=document.getElementById(id);if(el)el.onclick=()=>cp(emails[key],msg);};
+  const wire=(id,key,msg)=>{const elBtn2=document.getElementById(id);if(elBtn2)elBtn2.onclick=()=>cp(emails[key],msg);};
   wire('dcp-b','booking','\u2713 Booking email copiado');wire('dcp-f','followup','\u2713 Follow-up copiado');wire('dcp-l','linkedin','\u2713 LinkedIn copiado');
   const em=document.getElementById('dce');if(em&&d.contactEmail)em.onclick=()=>cp(d.contactEmail,'\u2713 Email copiado');
 }
@@ -783,11 +786,11 @@ function buildBurCard(b){
   const tbadges=burTags(b).slice(0,2).map(t=>'<span class="badge b-cat">'+(tmap[t]||t)+'</span>').join('');
   const stBtns=['not_contacted','pitched','in_talks','represented','passed'].map(s=>{
     const cls='bsb'+(b.status===s?' on-'+s:'');
-    const el=document.createElement('button');
-    el.className=cls;
-    el.textContent=BSL[s];
-    el.setAttribute('onclick',"saveBurSt('"+b.id+"','"+s+"');event.stopPropagation()");
-    return el.outerHTML;
+    const elNew=document.createElement('button');
+    elNew.className=cls;
+    elNew.textContent=BSL[s];
+    elNew.setAttribute('onclick',"saveBurSt('"+b.id+"','"+s+"');event.stopPropagation()");
+    return elNew.outerHTML;
   }).join('');
   const why=(b.why||'').length>150?(b.why||'').substring(0,150)+'\u2026':(b.why||'');
   const foc=b.focus.length>45?b.focus.substring(0,45)+'\u2026':b.focus;
@@ -1414,11 +1417,7 @@ function plRender(){
   }
 }
 
-const _origSaveSt = saveSt;
-saveSt = function(id, st){
-  _origSaveSt(id, st);
-  plSaveDate(id, new Date().toLocaleDateString('es-MX',{month:'short',day:'numeric'}));
-};
+// saveSt override inlined
 
 let brandCurrentFilter = 'all';
 
@@ -1799,16 +1798,7 @@ function showApolloInstructions(count){
 
 // Modify renderCat sort to respect _myPrio
 // Patch into existing sort logic
-const _origRenderCat = renderCat;
-renderCat = function(cat, filter){
-  // Apply user priority overrides to OPPS before render
-  OPPS.forEach(o => {
-    const mp = loadMyPrio(o.id);
-    if(mp) o._myPrio = parseInt(mp);
-    else o._myPrio = null;
-  });
-  _origRenderCat(cat, filter);
-};
+// Priority override applied inline in renderCat - no wrapper needed
 
 // Contact verification badge
 const CLABEL = {
