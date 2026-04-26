@@ -1809,6 +1809,19 @@ const CLABEL = {
   'linkedin': '<span style="font-size:9px;font-weight:700;background:rgba(10,102,194,.12);color:#0a66c2;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">🔗 LinkedIn</span>',
   'existing': '<span style="font-size:9px;font-weight:700;background:rgba(245,194,66,.15);color:#F5C842;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">⭐ Relación existente</span>',
 };
+
+// ═══════════════════════════════════════════════════
+// INIT — render on load
+// ═══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function(){
+  try {
+    renderCat('ai','all');
+    updateStats('ai');
+    renderBureaus();
+  } catch(e) {
+    console.error('Init error:', e);
+  }
+});
 </script>
 </body>
 </html>
