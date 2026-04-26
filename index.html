@@ -237,6 +237,7 @@
       <button class="chip" id="xf-p12" onclick="xFilter('p12',this)">P1+P2</button>
       <button class="chip" id="xf-warm" onclick="xFilter('warm',this)">Warm</button>
       <button class="chip" id="xf-urgent" onclick="xFilter('urgent',this)">🔴 &lt;90d</button>
+      <button class="chip" id="xf-kept" onclick="xFilter('kept',this)">💚 Favoritas</button>
     </div>
     <input class="inp" id="x-search" type="text" placeholder="Buscar por nombre u organización..."
       oninput="xSearch(this.value)" autocomplete="off" style="margin-bottom:8px">
@@ -257,7 +258,25 @@
     <button onclick="xExport()" id="x-export-btn" style="width:100%;padding:14px;background:#1A5E38;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;opacity:.4;pointer-events:none">
       📥 Exportar Excel (<span id="x-btn-count">0</span> contactos)
     </button>
-    <div id="x-export-msg" style="text-align:center;font-size:12px;color:var(--t3);margin-top:6px"></div>
+    
+      <!-- Apollo section -->
+      <div style="margin-top:16px;background:rgba(255,255,255,.04);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.08)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:20px">🚀</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#fff">Exportar a Apollo.io</div>
+            <div style="font-size:11px;color:var(--t3)">Exporta tus 💚 favoritas para buscar emails y enviar desde Apollo</div>
+          </div>
+        </div>
+        <div id="apollo-kept-count" style="font-size:12px;color:var(--t3);margin-bottom:10px"></div>
+        <button onclick="exportForApollo()" 
+          style="width:100%;padding:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit">
+          🚀 Exportar 💚 Favoritas a Apollo
+        </button>
+        <div style="font-size:10px;color:var(--t3);margin-top:8px;text-align:center">
+          Apollo busca y verifica emails automáticamente — tú solo mandas los correos
+        </div>
+      </div><div id="x-export-msg" style="text-align:center;font-size:12px;color:var(--t3);margin-top:6px"></div>
   </div>
 </div>
 <nav class="bnav" style="overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;display:flex;padding:0 4px;scrollbar-width:none;gap:2px">
@@ -344,11 +363,7 @@ function renderCat(cat,filter){
   else if(filter==='existing') data=data.filter(o=>o.existing);
   else if(filter==='warm') data=data.filter(o=>o.warm||o.existing);
   else if(filter==='now') data=data.filter(o=>o.urgency==='now');
-  data.sort((a,b)=>{
-    if(a.status==='booked'&&b.status!=='booked')return 1;
-    if(b.status==='booked'&&a.status!=='booked')return-1;
-    return a.priority-b.priority||b.score-a.score;
-  });
+  data.sort((a,b)=>((a._myPrio||a.priority)-(b._myPrio||b.priority))||((b.score||0)-(a.score||0))||(a.days_sort||9999)-(b.days_sort||9999));
   const list=document.getElementById('list-'+cat);
   if(!list)return;
   let html=data.length?data.map(buildCard).join(''):'<div class="empty-s">No hay oportunidades en este filtro.</div>';
@@ -425,10 +440,22 @@ function buildCard(o){
 </div>
 ${urgLine}${warmNote}${discBar}
 <div class="status-bar">${stBtns}</div>
-<div class="act-row">
-  <button class="btn btn-g" onclick="openSh('${o.id}')">\u2709 Generar Email</button>
+<div class="act-row" style="flex-wrap:wrap;gap:5px">
+  <button class="btn btn-g" onclick="openSh('${o.id}')" style="flex:2">✉ Email</button>
   ${websiteBtn}${liBtn}
-  <button class="btn btn-s" onclick="showInfo('${o.id}')">\ud83d\udccb</button>
+  <button class="btn btn-s" onclick="showInfo('${o.id}')" title="Info">📋</button>
+  <button onclick="toggleKeep('${o.id}',this);event.stopPropagation()"
+    style="padding:7px 10px;background:rgba(255,255,255,.06);border:1px solid var(--bd);border-radius:8px;font-size:14px;cursor:pointer;color:var(--t3)"
+    title="Marcar favorita">🤍</button>
+  <select onchange="setMyPriority('${o.id}',this.value,this);event.stopPropagation()"
+    onclick="event.stopPropagation()"
+    style="background:rgba(255,255,255,.06);border:1px solid var(--bd);border-radius:8px;color:var(--t2);font-size:11px;padding:4px 6px;cursor:pointer;font-family:inherit;max-width:64px">
+    <option value="">Mi P</option>
+    <option value="1">⭐ P1</option>
+    <option value="2">🟡 P2</option>
+    <option value="3">🔵 P3</option>
+    <option value="4">⚪ P4</option>
+  </select>
   ${discBtn}
 </div>
 </div>`;
@@ -1003,6 +1030,7 @@ function xGetFiltered(){
     data=data.filter(o=>(o.name||'').toLowerCase().includes(q)||(o.org||'').toLowerCase().includes(q));
   }
   else if(xCurrentFilter==='urgent') data=data.filter(o=>o.days!==null&&o.days!==undefined&&o.days>=0&&o.days<=90);
+  else if(xCurrentFilter==='kept') data=data.filter(o=>loadKeep(o.id)==='keep');
 
   data.sort((a,b)=>{
     const as=a.days_sort!==undefined?a.days_sort:9999;
@@ -1593,6 +1621,180 @@ function navFromMore(cat){
     if(cat==='nextgen') ngRender();
   }, 280);
 }
+
+// ═══════════════════════════════════════════════════
+// FEATURE: KEEP / REMOVE + MY PRIORITY
+// ═══════════════════════════════════════════════════
+function loadKeep(id){ try{return localStorage.getItem('cjk_'+id)||''}catch(e){return''} }
+function saveKeep(id,v){ try{localStorage.setItem('cjk_'+id,v)}catch(e){} }
+function loadMyPrio(id){ try{return localStorage.getItem('cjp_'+id)||''}catch(e){return''} }
+function saveMyPrio(id,v){ try{localStorage.setItem('cjp_'+id,v)}catch(e){} }
+
+function toggleKeep(id, btn){
+  const current = loadKeep(id);
+  const o = OPPS.find(x=>x.id===id);
+  if(!o) return;
+  if(current === 'keep'){
+    saveKeep(id, '');
+    btn.textContent = '🤍';
+    btn.style.background = 'rgba(255,255,255,.06)';
+    btn.style.color = 'var(--t3)';
+    btn.title = 'Marcar como favorita';
+    toast('Removida de favoritas');
+  } else {
+    saveKeep(id, 'keep');
+    btn.textContent = '💚';
+    btn.style.background = 'rgba(0,200,80,.15)';
+    btn.style.color = '#00c850';
+    btn.title = 'En tu lista';
+    toast('✓ Agregada a tu lista');
+  }
+}
+
+function removeOpp(id){
+  const o = OPPS.find(x=>x.id===id);
+  if(!o) return;
+  if(confirm(`¿Eliminar "${o.name.substring(0,40)}..." de tu lista?`)){
+    o.discarded = true;
+    try{localStorage.setItem('se3d_'+id,'1')}catch(e){}
+    renderCat(o.cat, curFlt[o.cat]||'all');
+    updateStats(o.cat);
+    toast('Eliminada');
+  }
+}
+
+function setMyPriority(id, prio, selectEl){
+  saveMyPrio(id, prio);
+  const o = OPPS.find(x=>x.id===id);
+  if(o){
+    o._myPrio = parseInt(prio) || o.priority;
+    toast(`Prioridad tuya: P${prio}`);
+    // Re-sort current view
+    renderCat(o.cat, curFlt[o.cat]||'all');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// FEATURE: APOLLO EXPORT
+// ═══════════════════════════════════════════════════
+function getKeptOpps(){
+  return OPPS.filter(o => loadKeep(o.id) === 'keep' && !o.discarded);
+}
+
+function exportForApollo(){
+  const kept = getKeptOpps();
+  if(kept.length === 0){
+    alert('No tienes oportunidades marcadas con 💚. Marca las que quieres primero.');
+    return;
+  }
+
+  // Apollo CSV format: First Name, Last Name, Email, Company, Title, Website
+  const headers = ['First Name','Last Name','Email','Company','Title','Website','Phone','Notes'];
+  
+  const rows = kept.map(o => {
+    const contact = o.contact||'';
+    const emailM = contact.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+    const email = emailM ? emailM[0] : '';
+    const phoneM = contact.match(/\(\d{3}\)\s*\d{3}[\-\.]\d{4}|\+[\d\s.\-]{8,16}\d/);
+    const phone = phoneM ? phoneM[0].trim() : '';
+    const urlM = (o.sq||'').match(/[a-zA-Z0-9][a-zA-Z0-9\-]*\.(?:com|org|net|gov|edu|io)/);
+    const website = urlM ? 'https://'+urlM[0] : '';
+    
+    // Parse DM name if available
+    const dm = o.dm||'';
+    const nameParts = dm.split(' ');
+    const firstName = nameParts[0]||'';
+    const lastName = nameParts.slice(1,3).join(' ')||'';
+    
+    const notes = `${o.name} | ${o.date||''} | P${o._myPrio||o.priority} | Score:${o.score}`;
+    
+    return [firstName, lastName, email, o.org||'', dm, website, phone, notes];
+  });
+
+  const esc = v => {
+    const s = String(v||'').replace(/"/g,'""');
+    return (s.includes(',')||s.includes('"')||s.includes('\n')) ? '"'+s+'"' : s;
+  };
+  
+  const csv = '\uFEFF' + [headers,...rows].map(r=>r.map(esc).join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Carvajalino_Apollo_Import_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  
+  toast(`✅ ${kept.length} contactos exportados para Apollo`);
+  
+  // Show Apollo instructions
+  showApolloInstructions(kept.length);
+}
+
+function showApolloInstructions(count){
+  const existing = document.getElementById('apollo-instructions');
+  if(existing) existing.remove();
+  
+  const div = document.createElement('div');
+  div.id = 'apollo-instructions';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:flex-end;justify-content:center';
+  div.innerHTML = `
+    <div style="background:#1a1a2e;border-radius:20px 20px 0 0;padding:20px 20px 40px;width:100%;max-width:500px">
+      <div style="width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 16px"></div>
+      <h2 style="font-size:17px;font-weight:800;color:#fff;margin:0 0 6px">✅ ${count} contactos listos para Apollo</h2>
+      <p style="font-size:12px;color:rgba(255,255,255,.5);margin:0 0 16px">Sigue estos pasos para importar y enviar emails desde Apollo:</p>
+      
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+        <div style="background:rgba(255,255,255,.06);border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:18px;flex-shrink:0">1️⃣</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">Ve a Apollo.io</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.5)">Entra a tu cuenta en apollo.io</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,.06);border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:18px;flex-shrink:0">2️⃣</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">Contacts → Import → CSV</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.5)">Sube el archivo que descargaste: Carvajalino_Apollo_Import_*.csv</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,.06);border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:18px;flex-shrink:0">3️⃣</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">Apollo busca emails automáticamente</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.5)">Apollo verifica y completa los emails que faltan con su base de datos</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,.06);border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:18px;flex-shrink:0">4️⃣</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">Sequences → New Sequence</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.5)">Selecciona los contactos importados y crea una secuencia de emails para enviar</div>
+          </div>
+        </div>
+      </div>
+      
+      <button onclick="document.getElementById('apollo-instructions').remove()" 
+        style="width:100%;padding:14px;background:#1A5E38;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">
+        Entendido
+      </button>
+    </div>`;
+  document.body.appendChild(div);
+}
+
+// Modify renderCat sort to respect _myPrio
+// Patch into existing sort logic
+const _origRenderCat = renderCat;
+renderCat = function(cat, filter){
+  // Apply user priority overrides to OPPS before render
+  OPPS.forEach(o => {
+    const mp = loadMyPrio(o.id);
+    if(mp) o._myPrio = parseInt(mp);
+    else o._myPrio = null;
+  });
+  _origRenderCat(cat, filter);
+};
 </script>
 </body>
 </html>
