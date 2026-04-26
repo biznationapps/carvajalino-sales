@@ -383,6 +383,15 @@ function renderCat(cat,filter){
   list.innerHTML=html;
 }
 
+// Contact verification badge
+const CLABEL = {
+  'verified': '<span style="font-size:9px;font-weight:700;background:rgba(0,200,80,.15);color:#00c850;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">✅ Verificado</span>',
+  'likely':   '<span style="font-size:9px;font-weight:700;background:rgba(59,130,246,.12);color:#3B82F6;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">📧 Email directo</span>',
+  'inferred': '<span style="font-size:9px;font-weight:700;background:rgba(245,158,11,.12);color:#F59E0B;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">🔄 Formato inferido</span>',
+  'portal':   '<span style="font-size:9px;font-weight:700;background:rgba(255,255,255,.07);color:var(--t3);padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">🌐 Portal web</span>',
+  'linkedin': '<span style="font-size:9px;font-weight:700;background:rgba(10,102,194,.12);color:#0a66c2;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">🔗 LinkedIn</span>',
+  'existing': '<span style="font-size:9px;font-weight:700;background:rgba(245,194,66,.15);color:#F5C842;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">⭐ Relación existente</span>',
+};
 function buildCard(o){
   const cb=`<span class="badge ${CB[o.cat]||'b-ai'}">${CNAME[o.cat]}</span>`;
   const pb=`<span class="badge b-p${Math.min(o.priority,4)}">P${o.priority}</span>`;
@@ -1800,26 +1809,26 @@ function showApolloInstructions(count){
 // Patch into existing sort logic
 // Priority override applied inline in renderCat - no wrapper needed
 
-// Contact verification badge
-const CLABEL = {
-  'verified': '<span style="font-size:9px;font-weight:700;background:rgba(0,200,80,.15);color:#00c850;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">✅ Verificado</span>',
-  'likely':   '<span style="font-size:9px;font-weight:700;background:rgba(59,130,246,.12);color:#3B82F6;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">📧 Email directo</span>',
-  'inferred': '<span style="font-size:9px;font-weight:700;background:rgba(245,158,11,.12);color:#F59E0B;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">🔄 Formato inferido</span>',
-  'portal':   '<span style="font-size:9px;font-weight:700;background:rgba(255,255,255,.07);color:var(--t3);padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">🌐 Portal web</span>',
-  'linkedin': '<span style="font-size:9px;font-weight:700;background:rgba(10,102,194,.12);color:#0a66c2;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">🔗 LinkedIn</span>',
-  'existing': '<span style="font-size:9px;font-weight:700;background:rgba(245,194,66,.15);color:#F5C842;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:3px">⭐ Relación existente</span>',
-};
+
 
 // ═══════════════════════════════════════════════════
 // INIT — render on load
 // ═══════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function(){
   try {
+    // Test: add error display to page
+    const errDiv = document.createElement('div');
+    errDiv.id = 'init-error';
+    errDiv.style.cssText = 'position:fixed;top:60px;left:10px;right:10px;background:red;color:#fff;padding:10px;border-radius:8px;font-size:11px;z-index:9999;display:none;word-break:break-all';
+    document.body.appendChild(errDiv);
+    
     renderCat('ai','all');
     updateStats('ai');
     renderBureaus();
   } catch(e) {
-    console.error('Init error:', e);
+    const errDiv = document.getElementById('init-error');
+    if(errDiv){ errDiv.style.display='block'; errDiv.textContent = 'ERROR: ' + e.message + ' | ' + e.stack; }
+    console.error('Init error:', e.message, e.stack);
   }
 });
 </script>
