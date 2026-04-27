@@ -568,46 +568,365 @@ function showInfo(id){
 }
 
 async function openSh(id){
-  const o=OPPS.find(x=>x.id===id);
-  document.getElementById('sht').textContent=o.name;
-  document.getElementById('shs').textContent=o.org+' \u00b7 '+o.city;
-  document.getElementById('shb').innerHTML='<div class="sh-sec"><div class="sh-sec-lbl">\ud83d\udd0d Buscando contacto + generando emails</div><div class="log-box" id="rlog"></div></div>';
-  document.getElementById('shf').style.display='none';
+  const o = OPPS.find(x=>x.id===id);
+  if(!o) return;
+
+  // Determine which sequence to use
+  const seq = getSequenceFor(o);
+  const email1 = seq.emails[0];
+  const lang = detectLang(o);
+
+  // Pre-fill contact info
+  const emailM = (o.contact||'').match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+  const contactEmail = emailM ? emailM[0] : '';
+  const dmName = (o.dm||'').split('—')[0].split('|')[0].trim().split(' ')[0] || '[First Name]';
+  const eventMonth = o.date ? o.date.split(',')[0].replace(/\d{4}/,'').trim().split(' ').slice(-1)[0] : '[Mes]';
+  const daysLeft = o.days != null && o.days >= 0 ? `${o.days}` : null;
+
+  // Build pre-filled email
+  let subject = lang === 'es' ? email1.sES : email1.sEN;
+  let body = lang === 'es' ? email1.bES : email1.bEN;
+
+  // Replace placeholders
+  const replacements = {
+    '[First Name]': dmName,
+    '[Nombre]': dmName,
+    '[Event Name]': o.name,
+    '[Nombre del Evento]': o.name,
+    '[Company]': o.org,
+    '[Empresa]': o.org,
+    '[Month]': eventMonth,
+    '[Mes]': eventMonth,
+    '[X]': daysLeft || '?',
+    '[EMAIL]': 'catalina@carvajalinos.com',
+    '[Email]': 'catalina@carvajalinos.com',
+    '[Phone]': '+1 (954) 662-2223',
+    '[Teléfono]': '+1 (954) 662-2223',
+    '[Agent Name]': dmName,
+    '[Nombre del Agente]': dmName,
+    '[LINK]': 'carvajalinos.com/sizzle',
+  };
+
+  for(const [k,v] of Object.entries(replacements)){
+    subject = subject.replaceAll(k, v);
+    body = body.replaceAll(k, v);
+  }
+
+  // Show sheet
+  document.getElementById('sht').textContent = o.name;
+  document.getElementById('shs').textContent = o.org + ' · ' + (o.city||'');
+  document.getElementById('shf').style.display = 'none';
+
+  document.getElementById('shb').innerHTML = `
+    <!-- Sequence badge -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:700;background:rgba(26,94,56,.15);color:#1A5E38;padding:4px 10px;border-radius:100px">📋 Sequence ${seq.id} — ${seq.shortName}</span>
+      <span style="font-size:10px;color:var(--t3)">Email 1 de ${seq.emails.length} · Día 1</span>
+      <button onclick="toggleEmailLang()" style="font-size:10px;background:rgba(255,255,255,.08);border:1px solid var(--bd);border-radius:6px;padding:3px 8px;color:var(--t2);cursor:pointer;font-family:inherit">🌐 EN/ES</button>
+    </div>
+
+    <!-- Email number tabs -->
+    <div style="display:flex;gap:5px;margin-bottom:12px;overflow-x:auto">
+      ${seq.emails.map((e,i)=>`
+        <button onclick="loadSeqEmail(${i},'${id}')" 
+          style="flex-shrink:0;padding:5px 10px;background:${i===0?'rgba(26,94,56,.2)':'rgba(255,255,255,.05)'};border:1px solid ${i===0?'#1A5E38':'var(--bd)'};border-radius:8px;color:${i===0?'#1A5E38':'var(--t3)'};font-size:10px;font-weight:${i===0?700:400};cursor:pointer;font-family:inherit">
+          Email ${e.num}<br><span style="font-size:9px">Día ${e.day}</span>
+        </button>`).join('')}
+    </div>
+
+    <!-- Subject line -->
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;font-weight:700;color:var(--t3);margin-bottom:4px;letter-spacing:.06em">ASUNTO / SUBJECT</div>
+      <div id="sh-subject" style="background:rgba(255,255,255,.06);border:1px solid var(--bd);border-radius:9px;padding:10px 12px;font-size:13px;font-weight:700;color:var(--t1);line-height:1.4">${subject}</div>
+      <button onclick="cp(document.getElementById('sh-subject').textContent,'✓ Asunto copiado')" 
+        style="margin-top:4px;font-size:10px;color:#1A5E38;background:none;border:none;cursor:pointer;padding:2px 0">Copiar asunto →</button>
+    </div>
+
+    <!-- Body -->
+    <div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:var(--t3);margin-bottom:4px;letter-spacing:.06em">CUERPO / BODY</div>
+      <textarea id="sh-body" rows="12"
+        style="width:100%;background:rgba(255,255,255,.04);border:1px solid var(--bd);border-radius:10px;padding:12px;color:var(--t1);font-size:12px;line-height:1.7;font-family:inherit;resize:vertical;box-sizing:border-box">${body}</textarea>
+    </div>
+
+    <!-- Contact info -->
+    <div style="background:rgba(26,94,56,.08);border-radius:9px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:#1A5E38;margin-bottom:4px">📧 ENVIAR A</div>
+      <div style="font-size:12px;color:var(--t1);font-weight:600">${contactEmail || o.contact || 'Ver contacto en la tarjeta'}</div>
+      ${contactEmail ? `<button onclick="cp('${contactEmail}','✓ Email copiado')" style="font-size:10px;color:#1A5E38;background:none;border:none;cursor:pointer;margin-top:3px">Copiar email →</button>` : ''}
+    </div>
+
+    <!-- Action buttons -->
+    <div style="display:flex;gap:8px">
+      <button onclick="copyFullEmail('${id}')"
+        style="flex:2;padding:12px;background:linear-gradient(135deg,#1A5E38,#0a3d22);color:#fff;border:none;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+        📋 Copiar email completo
+      </button>
+      <button onclick="markAsEmailed('${id}')"
+        style="flex:1;padding:12px;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:#3B82F6;border-radius:11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
+        ✓ Enviado
+      </button>
+    </div>
+
+    <!-- Sequence guide -->
+    <div style="margin-top:12px;border-top:1px solid var(--bd);padding-top:10px">
+      <div style="font-size:10px;font-weight:700;color:var(--t3);margin-bottom:6px">CALENDARIO DE FOLLOW-UPS (Sequence ${seq.id})</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        ${seq.emails.map((e,i)=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+            <span style="font-size:10px;font-weight:700;color:var(--t3);width:40px">Día ${e.day}</span>
+            <span style="font-size:10px;color:var(--t2);flex:1">${e.note}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+  `;
+
+  // Store current sequence context
+  window._currentSeq = { seq, opp: o, emailIdx: 0, lang };
   openSheet();
-  addLog('Identificando: "'+o.name+'"');await sleep(500);
-  addLog('Buscando '+o.dm+'...');await sleep(600);
-  addLog('Rastreando email y LinkedIn...');await sleep(700);
-  addLog('Generando emails bureau-style...');
-  const ctx={ai:'AI keynote speaker for tech and business conferences',host:'professional bilingual MC and host for galas, conferences, PE events',corp:'AI workforce training provider for corporations and government'}[o.cat]||'keynote speaker';
-  const prompt=`You are a 20-year veteran speaking bureau agent.
-SPEAKER: ${S}
-OPPORTUNITY:
-- Name: ${o.name} | Org: ${o.org} | City: ${o.city} | Date: ${o.date}
-- Category: ${o.cat} (${ctx})
-- Decision Maker: ${o.dm} | Contact hint: ${o.contact}
-- Why they hire us: ${o.why}
-- Existing relationship: ${o.existing?'YES \u2014 existing client/partner, warm call':'Cold approach'}
-
-1. Use web_search to find REAL contact (full name, exact title, email, LinkedIn URL)
-2. Write BOOKING EMAIL from bureau perspective. Open with ONE specific fact about THIS org. Max 170 words. Never start "We are the Carvajalino Sisters."
-3. Write FOLLOW-UP for 5 business days later. 90 words.
-4. Write LINKEDIN MESSAGE. 45 words max.
-
-CRITICAL STYLE RULE: Never use em dashes (—) or en dashes (–) anywhere in the emails. Use commas, periods, or line breaks instead.
-Return ONLY valid JSON no markdown:
-{"contactName":"","contactTitle":"","contactEmail":"","contactLinkedIn":"","website":"","confidence":"high/medium/low","proTip":"","bookingEmail":{"subject":"","body":""},"followUpEmail":{"subject":"","body":""},"linkedinMsg":""}`;
-  try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,
-        tools:[{type:'web_search_20250305',name:'web_search'}],
-        messages:[{role:'user',content:prompt}]})});
-    const data=await res.json();
-    const txt=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-    const m=txt.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
-    if(!m)throw 0;
-    showResult(JSON.parse(m[0]),o);
-  }catch(e){showResult(fallback(o),o);}
 }
+
+function detectLang(o){
+  const latam_orgs = ['CAF','Colombia','ANDI','ACOPI','ProColombia','Consulado','AmCham Colombia','Venezuelan','LATAM','Latin American','IPAE','Febraban'];
+  const hisp_orgs = ['USHCC','NAHREP','ALPFA','SHPE','HACE','LULAC','HACU','CHCI','Prospanica','UnidosUS','NMSDC'];
+  const org = o.org || '';
+  if(latam_orgs.some(x=>org.includes(x)) || hisp_orgs.some(x=>org.includes(x))) return 'es';
+  return 'en'; // default English
+}
+
+function getSequenceFor(o){
+  const cat = o.cat || '';
+  const org = o.org || '';
+  const opp_type = o.opp_type || '';
+  
+  // Sequence C: Bureaus
+  if(cat === 'bureaus' || opp_type === 'bureau') return SEQ_C;
+  
+  // Sequence D: Hispanic/LATAM orgs
+  const latam = ['USHCC','NAHREP','ALPFA','SHPE','HACE','LULAC','HACU','CHCI','Prospanica','UnidosUS','NMSDC','CAF','Colombia','ANDI','ACOPI','ProColombia','Consulado','AmCham Colombia','Venezuelan','Latin American','LATAM','IDB','IPAE','Febraban'];
+  if(latam.some(x=>org.includes(x))) return SEQ_D;
+  
+  // Sequence B: Corporate/ERG
+  if(cat === 'corp' || opp_type === 'corporate' || opp_type === 'existing_client') return SEQ_B;
+  if(['Google','Microsoft','IBM','Deloitte','PwC','McKinsey','BCG','Accenture','JPMorgan','Goldman','Citi','Bank of America','Wells Fargo','Mastercard','Visa','Amazon','Meta','Apple','Salesforce','Oracle','SAP','Herbalife','Amway','Primerica'].some(x=>org.includes(x))) return SEQ_B;
+  
+  // Sequence A: Conferences (default)
+  return SEQ_A;
+}
+
+function loadSeqEmail(idx, oppId){
+  const { seq, opp, lang } = window._currentSeq || {};
+  if(!seq || !opp) return;
+  
+  const email = seq.emails[idx];
+  if(!email) return;
+  
+  window._currentSeq.emailIdx = idx;
+
+  const emailM = (opp.contact||'').match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+  const contactEmail = emailM ? emailM[0] : '';
+  const dmName = (opp.dm||'').split('—')[0].split('|')[0].trim().split(' ')[0] || '[First Name]';
+  const eventMonth = opp.date ? opp.date.split(',')[0].replace(/\d{4}/,'').trim().split(' ').slice(-1)[0] : '[Mes]';
+  const daysLeft = opp.days != null && opp.days >= 0 ? `${opp.days}` : '?';
+
+  let subject = lang === 'es' ? email.sES : email.sEN;
+  let body = lang === 'es' ? email.bES : email.bEN;
+
+  const replacements = {
+    '[First Name]': dmName,'[Nombre]': dmName,
+    '[Event Name]': opp.name,'[Nombre del Evento]': opp.name,
+    '[Company]': opp.org,'[Empresa]': opp.org,
+    '[Month]': eventMonth,'[Mes]': eventMonth,
+    '[X]': daysLeft,'[EMAIL]': 'catalina@carvajalinos.com',
+    '[Email]': 'catalina@carvajalinos.com',
+    '[Phone]': '+1 (954) 662-2223','[Teléfono]': '+1 (954) 662-2223',
+    '[Agent Name]': dmName,'[Nombre del Agente]': dmName,
+    '[LINK]': 'carvajalinos.com/sizzle',
+  };
+  for(const [k,v] of Object.entries(replacements)){
+    subject = subject.replaceAll(k,v);
+    body = body.replaceAll(k,v);
+  }
+
+  const subEl = document.getElementById('sh-subject');
+  const bodyEl = document.getElementById('sh-body');
+  if(subEl) subEl.textContent = subject;
+  if(bodyEl) bodyEl.value = body;
+
+  // Update tab highlights
+  document.querySelectorAll('#shb button').forEach((btn,i)=>{
+    if(btn.textContent.includes(`Email ${idx+1}`)){
+      btn.style.background='rgba(26,94,56,.2)';
+      btn.style.color='#1A5E38';
+      btn.style.fontWeight='700';
+      btn.style.borderColor='#1A5E38';
+    }
+  });
+}
+
+function toggleEmailLang(){
+  const ctx = window._currentSeq;
+  if(!ctx) return;
+  ctx.lang = ctx.lang === 'en' ? 'es' : 'en';
+  loadSeqEmail(ctx.emailIdx, ctx.opp.id);
+  toast(ctx.lang === 'en' ? '🇺🇸 English' : '🇨🇴 Español');
+}
+
+function copyFullEmail(id){
+  const subject = document.getElementById('sh-subject')?.textContent || '';
+  const body = document.getElementById('sh-body')?.value || '';
+  const full = `Asunto: ${subject}\n\n${body}`;
+  navigator.clipboard.writeText(full).then(()=>{
+    toast('✅ Email completo copiado — pega en GHL o Apollo');
+  }).catch(()=>{
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = full;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('✅ Email completo copiado');
+  });
+}
+
+function markAsEmailed(id){
+  saveSt(id, 'emailed');
+  plSaveDate(id, new Date().toLocaleDateString('es-MX',{month:'short',day:'numeric'}));
+  toast('✅ Marcado como Email Enviado en el Pipeline');
+  closeSheet();
+}
+
+// ── SEQUENCES DATA (used by openSh) ──────────────────────────────────────
+const SEQ_A = {
+  id:'A', shortName:'Conferencias & Asociaciones',
+  emails:[
+    { num:1, day:1,
+      note:'Primera impresión — pitch claro, credenciales fuertes',
+      sEN:'Speaker proposal — Carvajalino Sisters | AI + Bilingual | Forbes 30U30',
+      sES:'Propuesta de speaker — Hermanas Carvajalino | AI + Bilingual | Forbes 30U30',
+      bEN:`Hi [First Name],\n\nI'm Catalina Reyes, Head of Partnerships at Carvajalino Sisters. I'm reaching out because [Event Name] is exactly the kind of audience Karen, Daniela, and Stephanie speak to best.\n\nQuick snapshot: Forbes 30 Under 30, WEF-recognized AI educators who have trained 100,000+ professionals across 9 countries — including teams at Microsoft (30K public servants), IBM SkillsBuild (20K+), and CAF. Bilingual EN/ES. Based in Miami.\n\nTheir most requested talks for 2026:\n• AI for Real People: Practical Tools, Real Results\n• From Fear to Competitive Advantage: AI Leadership for Teams\n• The Latina AI Playbook: How Diversity Drives Innovation\n\nOne-pager attached. Sizzle reel: [LINK]\n\nWould there be an opportunity to speak at [Event Name] in [Month]? Happy to jump on a 15-minute call this week.\n\nBest,\nCatalina Reyes\nHead of Partnerships | Carvajalino Sisters\n[Email] | [Phone] | carvajalinos.com`,
+      bES:`Hola [Nombre],\n\nSoy Catalina Reyes, Head of Partnerships de las Hermanas Carvajalino. Te escribo porque [Nombre del Evento] es exactamente el tipo de audiencia con la que Karen, Daniela y Stephanie tienen mayor impacto.\n\nResumen rápido: Forbes 30 Menores de 30, educadoras de AI reconocidas por el WEF, con más de 100,000 profesionales entrenados en 9 países. Bilingues EN/ES. Basadas en Miami.\n\nSus charlas más solicitadas:\n• AI para Personas Reales: Herramientas Prácticas, Resultados Reales\n• De la Incertidumbre a la Ventaja: Liderazgo con AI para Equipos\n• El Playbook Latino de AI: Cómo la Diversidad Impulsa la Innovación\n\nOne-pager adjunto. Sizzle reel: [LINK]\n\n¿Habría espacio para [Nombre del Evento] en [Mes]? Podemos hacer una llamada de 15 minutos esta semana.\n\nSaludos,\nCatalina Reyes\nHead of Partnerships | Hermanas Carvajalino\n[Email] | [Teléfono] | carvajalinos.com`,
+    },
+    { num:2, day:5,
+      note:'Valor agregado — dato específico del evento',
+      sEN:'Re: Something specific I noticed about [Event Name]',
+      sES:'Re: Algo que noté sobre [Nombre del Evento]',
+      bEN:`Hi [First Name],\n\nFollowing up on my note from earlier this week.\n\nI was looking at [Event Name]'s past program and noticed the AI content was mostly technical — the Carvajalino Sisters bring the business application angle that practitioners actually need.\n\nOne stat: after their Copilot workshop for CAF's 28 executives, 94% reported applying the tools immediately. That's the level of practical impact they deliver.\n\nStill happy to set up 15 minutes.\n\nCatalina Reyes | Carvajalino Sisters`,
+      bES:`Hola [Nombre],\n\nSeguimiento a mi mensaje de principios de semana.\n\nEstaba revisando el programa de [Nombre del Evento] y noté que el contenido de AI es principalmente técnico — las Carvajalino traen el ángulo de aplicación empresarial que los profesionales realmente necesitan.\n\nUn dato: tras su workshop de Copilot para 28 ejecutivos del CAF, el 94% reportó aplicar las herramientas de inmediato.\n\nQuedo disponible para una llamada de 15 minutos.\n\nCatalina Reyes | Hermanas Carvajalino`,
+    },
+    { num:3, day:10,
+      note:'Prueba social — caso de éxito cuantificado',
+      sEN:'Re: Quick proof point — 94% immediate adoption',
+      sES:'Re: Caso de éxito — 94% de adopción inmediata',
+      bEN:`Hi [First Name],\n\nOne more quick follow-up.\n\nEarlier this year the Carvajalino Sisters delivered a keynote for CAF — the Latin American Development Bank — with 28 C-suite executives. By the end, participants were building their own AI workflows in real time. 94% reported applying the tools immediately.\n\nThat's what they bring to a professional audience. Not theory. Implementation.\n\nIf [Event Name] has a speaker selection process underway, I'd love to submit a formal proposal.\n\nCatalina`,
+      bES:`Hola [Nombre],\n\nUn último seguimiento rápido.\n\nA principios de este año, las Hermanas Carvajalino realizaron un workshop para el CAF con 28 ejecutivos de C-suite. El 94% reportó aplicar las herramientas de inmediato en su trabajo diario.\n\nEsa es la experiencia que traen. No teoría. Implementación.\n\nSi [Nombre del Evento] tiene un proceso de selección de speakers, me encantaría enviar una propuesta formal.\n\nCatalina`,
+    },
+    { num:4, day:16,
+      note:'Urgencia — solo si quedan menos de 90 días',
+      sEN:'[Event Name] is in [X] days — still looking for speakers?',
+      sES:'[Nombre del Evento] es en [X] días — ¿aún buscan speakers?',
+      bEN:`Hi [First Name],\n\n[Event Name] is coming up fast — [X] days out.\n\nIf speaker slots are still open, I want to make sure the Carvajalino Sisters are in the conversation. They have full availability for [Month] and the topic — AI for your audience — is exactly what attendees are asking about right now.\n\nI can send a speaker brief today.\n\nCatalina Reyes | Carvajalino Sisters | [Phone]`,
+      bES:`Hola [Nombre],\n\n[Nombre del Evento] ya se acerca — quedan [X] días.\n\nSi todavía hay cupos de speaker disponibles, quiero asegurarme de que las Hermanas Carvajalino estén en la conversación. Tienen disponibilidad total para [Mes].\n\nPuedo enviar un brief de speaker hoy mismo.\n\nCatalina Reyes | Hermanas Carvajalino | [Teléfono]`,
+    },
+    { num:5, day:21,
+      note:'Breakup — el más efectivo estadísticamente',
+      sEN:'Closing the loop on [Event Name]',
+      sES:'Cerrando el tema de [Nombre del Evento]',
+      bEN:`Hi [First Name],\n\nI've reached out a few times and haven't heard back — completely understood.\n\nThis is my last note. If the timing isn't right for [Event Name], no problem at all.\n\nIf a speaker need comes up down the road — AI keynote, bilingual workshop, Latina executive panel — I hope you'll think of the Carvajalino Sisters.\n\ncarvajalinos.com | [Email]\n\nThanks for your time.\nCatalina`,
+      bES:`Hola [Nombre],\n\nTe he escrito varias veces y no he recibido respuesta. Lo entiendo completamente.\n\nEste es mi último mensaje. Si el momento no es el indicado, no hay ningún problema.\n\nSi en algún momento surge una necesidad de speaker — keynote de AI, workshop bilingüe, panel de ejecutivas latinas — espero que pienses en las Hermanas Carvajalino.\n\ncarvajalinos.com | [Email]\n\nGracias por tu tiempo.\nCatalina`,
+    },
+  ]
+};
+
+const SEQ_B = {
+  id:'B', shortName:'Corporate & ERGs',
+  emails:[
+    { num:1, day:1,
+      note:'Pitch personalizado con algo específico de la empresa',
+      sEN:'AI keynote for [Company] — Carvajalino Sisters | Forbes 30U30',
+      sES:'Keynote de AI para [Empresa] — Hermanas Carvajalino | Forbes 30U30',
+      bEN:`Hi [First Name],\n\nI'm Catalina Reyes, Head of Partnerships at Carvajalino Sisters. I'm reaching out because [Company]'s focus on AI and workforce development aligns exactly with what Karen, Daniela, and Stephanie deliver.\n\nThey've trained 100,000+ professionals with Microsoft, IBM, and CAF. The result: teams that actually use AI, not just hear about it. Forbes 30 Under 30, WEF-recognized, bilingual EN/ES.\n\nFor [Company] specifically:\n"AI for [Company] Teams: Practical Tools You'll Use Monday"\n\nA keynote or half-day workshop fully tailored to your team's tools and context.\n\nWould you have 15 minutes this week?\n\nCatalina Reyes\nHead of Partnerships | Carvajalino Sisters\n[Email] | [Phone]`,
+      bES:`Hola [Nombre],\n\nSoy Catalina Reyes, Head of Partnerships de las Hermanas Carvajalino. Te escribo porque el enfoque de [Empresa] en AI y desarrollo de talento se alinea exactamente con lo que Karen, Daniela y Stephanie ofrecen.\n\nHan entrenado a más de 100,000 profesionales con Microsoft, IBM y CAF. El resultado: equipos que realmente usan AI. Forbes 30 Menores de 30, bilingues EN/ES.\n\nPara [Empresa] específicamente:\n"AI para el Equipo de [Empresa]: Herramientas Prácticas que Usarás el Lunes"\n\nUn keynote o workshop de medio día completamente adaptado.\n\n¿Tendrías 15 minutos esta semana?\n\nCatalina Reyes\nHead of Partnerships | Hermanas Carvajalino\n[Email] | [Teléfono]`,
+    },
+    { num:2, day:6,
+      note:'Gancho de noticia reciente de la empresa',
+      sEN:"Re: Something [Company] just did caught my attention",
+      sES:'Re: Algo que [Empresa] acaba de hacer llamó mi atención',
+      bEN:`Hi [First Name],\n\nQuick follow-up.\n\nI noticed [Company] recently made moves in AI — that tells me your team is already thinking about this seriously.\n\nThe Carvajalino Sisters' strength is making AI tangible for non-engineers: executives, sales teams, ERG members, client-facing roles. The difference between "we have AI" and "we actually use it."\n\nHappy to share what that looked like for a similar team at IBM or Microsoft.\n\nCatalina`,
+      bES:`Hola [Nombre],\n\nSeguimiento rápido.\n\nNoté que [Empresa] está avanzando en AI — eso me indica que el equipo ya está pensando seriamente en esto.\n\nLa fortaleza de las Hermanas Carvajalino es hacer el AI tangible para no ingenieros: ejecutivos, equipos de ventas, ERGs. La diferencia entre "tenemos AI" y "realmente la usamos."\n\nCon gusto comparto cómo se vio para equipos similares en IBM o Microsoft.\n\nCatalina`,
+    },
+    { num:3, day:12,
+      note:'Caso de éxito — 94% CAF',
+      sEN:'Re: 94% immediate adoption — a result worth sharing',
+      sES:'Re: 94% adopción inmediata — un resultado que vale compartir',
+      bEN:`Hi [First Name],\n\nOne more follow-up — then I'll leave you alone.\n\nAfter a Copilot workshop for CAF's 28 C-suite executives, 94% reported applying the tools immediately. For a half-day session, that's an unusually strong result.\n\n[Company] has a similar profile — senior professionals who are skeptical of AI until they see it work in their specific context.\n\nIf there's a team event or leadership offsite coming up, I'd love to know.\n\nCatalina Reyes | Carvajalino Sisters | [Email]`,
+      bES:`Hola [Nombre],\n\nUn seguimiento más, luego te dejo tranquilo.\n\nTras un workshop de Copilot para 28 ejecutivos de C-suite del CAF, el 94% reportó aplicar las herramientas de inmediato. Para una sesión de medio día, ese es un resultado inusualmente fuerte.\n\n[Empresa] tiene un perfil similar — profesionales senior escépticos del AI hasta que lo ven funcionar en su contexto específico.\n\nSi hay algún evento de equipo próximo, me encantaría saberlo.\n\nCatalina Reyes | Hermanas Carvajalino | [Email]`,
+    },
+    { num:4, day:19,
+      note:'Breakup corporativo — brevísimo',
+      sEN:'Last note — Carvajalino Sisters + [Company]',
+      sES:'Último mensaje — Hermanas Carvajalino + [Empresa]',
+      bEN:`Hi [First Name],\n\nI'll keep this short — I've followed up a few times and don't want to overdo it.\n\nIf there's no fit right now, no problem. If that changes — team training, leadership event, ERG keynote — you know where to find us.\n\ncarvajalinos.com | [Email]\n\nThanks for your time.\nCatalina`,
+      bES:`Hola [Nombre],\n\nSeré breve — te he escrito varias veces y no quiero ser insistente.\n\nSi no hay encaje ahora, no hay problema. Si eso cambia, ya sabes dónde encontrarnos.\n\ncarvajalinos.com | [Email]\n\nGracias por tu tiempo.\nCatalina`,
+    },
+  ]
+};
+
+const SEQ_C = {
+  id:'C', shortName:'Bureaus de Speakers',
+  emails:[
+    { num:1, day:1,
+      note:'Submission formal — adjuntar one-pager y sizzle reel',
+      sEN:'Speaker representation inquiry — Carvajalino Sisters | AI + Bilingual | Forbes 30U30',
+      sES:'Consulta sobre representación — Hermanas Carvajalino | AI + Bilingüe | Forbes 30U30',
+      bEN:`Hi [Agent Name],\n\nI'm Catalina Reyes, Head of Partnerships for the Carvajalino Sisters — Karen, Daniela, and Stephanie. I'm reaching out to explore whether [Company] would be a fit to represent them.\n\nSpeaker snapshot:\n• Forbes 30 Under 30 (2023) | WEF-recognized AI educators\n• 100,000+ professionals trained across 9 countries\n• Partners: Microsoft (30K), IBM SkillsBuild (20K+), CAF, Colgate-Palmolive, AstraZeneca\n• Bilingual EN/ES | 1M+ social followers\n• Coverage: CNN, BBC, TechCrunch, Forbes\n• Based in Miami, available globally\n\nSizzle reel: [LINK]\n\nWould you be open to a 20-minute call to discuss representation?\n\nCatalina Reyes\nHead of Partnerships | Carvajalino Sisters\n[Email] | [Phone] | carvajalinos.com`,
+      bES:`Hola [Nombre del Agente],\n\nSoy Catalina Reyes, Head of Partnerships de las Hermanas Carvajalino — Karen, Daniela y Stephanie. Te escribo para explorar si [Empresa] sería un buen match para representarlas.\n\nPerfil:\n• Forbes 30 Menores de 30 (2023) | Educadoras de AI reconocidas por el WEF\n• +100,000 profesionales entrenados en 9 países\n• Partners: Microsoft (30K), IBM SkillsBuild (20K+), CAF, Colgate-Palmolive, AstraZeneca\n• Bilingues EN/ES | +1M seguidores | CNN, BBC, TechCrunch, Forbes\n• Basadas en Miami, disponibles globalmente\n\nSizzle reel: [LINK]\n\n¿Estarías disponible para una llamada de 20 minutos?\n\nCatalina Reyes\nHead of Partnerships | Hermanas Carvajalino\n[Email] | [Teléfono] | carvajalinos.com`,
+    },
+    { num:2, day:7,
+      note:'Follow-up con logro reciente',
+      sEN:'Re: Carvajalino Sisters — one update worth noting',
+      sES:'Re: Hermanas Carvajalino — una actualización que vale mencionar',
+      bEN:`Hi [Agent Name],\n\nFollowing up on my submission from last week.\n\nWorth noting: the Carvajalino Sisters recently completed a sold-out AI workshop for CAF with 28 senior executives — 94% immediate adoption rate.\n\nGiven [Company]'s strength in the corporate training and bilingual speaker market, I think there's a real fit here.\n\nHappy to send additional materials or connect for a quick call.\n\nCatalina Reyes | Carvajalino Sisters`,
+      bES:`Hola [Nombre del Agente],\n\nSeguimiento a mi submission de la semana pasada.\n\nVale mencionar: las Hermanas Carvajalino acaban de completar un workshop de AI para el CAF con 28 ejecutivos — 94% de adopción inmediata.\n\nDado el posicionamiento de [Empresa] en entrenamiento corporativo y speakers bilingues, creo que hay un encaje real aquí.\n\nCon gusto envío materiales adicionales.\n\nCatalina Reyes | Hermanas Carvajalino`,
+    },
+    { num:3, day:18,
+      note:'Breakup — dejar puerta abierta',
+      sEN:'Re: Closing the loop on representation inquiry',
+      sES:'Re: Cerrando el tema de la consulta de representación',
+      bEN:`Hi [Agent Name],\n\nLast note from me on this.\n\nIf the timing isn't right — perhaps waiting for a stronger booking history — I completely understand. We'll continue building.\n\nWhen the moment is right, I hope [Company] will be the first call we make.\n\ncarvajalinos.com is always updated.\n\nCatalina Reyes | Carvajalino Sisters`,
+      bES:`Hola [Nombre del Agente],\n\nÚltimo mensaje de mi parte.\n\nSi el momento no es el indicado — quizás esperando un historial de bookings más sólido — entiendo completamente el proceso.\n\nCuando llegue el momento, espero que [Empresa] sea la primera llamada que hagamos.\n\ncarvajalinos.com siempre está actualizado.\n\nCatalina Reyes | Hermanas Carvajalino`,
+    },
+  ]
+};
+
+const SEQ_D = {
+  id:'D', shortName:'Comunidad Hispana & LATAM',
+  emails:[
+    { num:1, day:1,
+      note:'Conexión cultural desde el primer párrafo — ellas SON la audiencia',
+      sEN:'Speaker proposal — Carvajalino Sisters | AI + Latina Leaders | Forbes 30U30',
+      sES:'Propuesta de speaker — Hermanas Carvajalino | AI + Liderazgo Latino | Forbes 30U30',
+      bEN:`Hi [First Name],\n\nI'm Catalina Reyes, Head of Partnerships at Carvajalino Sisters. Karen, Daniela, and Stephanie are exactly who [Event Name] was built for — and exactly who your community needs to see on stage.\n\nThree Colombian sisters. Forbes 30 Under 30. WEF-recognized. Based in Miami. They built an AI education company that has trained 100,000+ professionals across 9 countries — including 30,000 public servants with Microsoft and 20,000+ with IBM. From nothing. Bilingually. As Latinas.\n\nThis is not a talk about AI. It's a talk about what's possible when you decide to lead.\n\nOne-pager attached. Sizzle reel: [LINK]\n\nCan we find 15 minutes this week?\n\nCatalina Reyes\nHead of Partnerships | Carvajalino Sisters`,
+      bES:`Hola [Nombre],\n\nSoy Catalina Reyes, Head of Partnerships de las Hermanas Carvajalino. Karen, Daniela y Stephanie son exactamente para quien [Nombre del Evento] fue creado — y exactamente quien tu comunidad necesita ver en el escenario.\n\nTres hermanas colombianas. Forbes 30 Menores de 30. Reconocidas por el WEF. Basadas en Miami. Construyeron una empresa de educación en AI que ha entrenado a más de 100,000 profesionales en 9 países. Desde cero. En dos idiomas. Siendo latinas.\n\nEsta no es una charla sobre AI. Es una charla sobre lo que es posible cuando decides liderar.\n\nOne-pager adjunto. Sizzle reel: [LINK]\n\n¿Podemos encontrar 15 minutos esta semana?\n\nCatalina Reyes\nHead of Partnerships | Hermanas Carvajalino`,
+    },
+    { num:2, day:5,
+      note:'Caso de éxito LATAM — CAF 94%',
+      sEN:"Re: What happened when they trained Latin American executives",
+      sES:'Re: Lo que pasó cuando entrenaron a ejecutivos latinoamericanos',
+      bEN:`Hi [First Name],\n\nQuick follow-up.\n\nEarlier this year the Carvajalino Sisters ran a 4-hour AI workshop for CAF — the Latin American Development Bank — with 28 senior executives. By the end, participants were building their own AI workflows in real time. 94% reported applying the tools immediately.\n\nThat's the experience they bring to a Latino/Latin American professional audience. Not theory. Implementation. In Spanish and English.\n\nStill interested in a quick call?\n\nCatalina`,
+      bES:`Hola [Nombre],\n\nSeguimiento rápido.\n\nA principios de este año, las Hermanas Carvajalino realizaron un workshop de AI de 4 horas para el CAF con 28 ejecutivos de alto nivel. Al final, los participantes estaban construyendo sus propios flujos de trabajo con AI en tiempo real. El 94% reportó aplicar las herramientas de inmediato.\n\nEsa es la experiencia que traen a una audiencia latinoamericana. No teoría. Implementación. En español y en inglés.\n\n¿Sigues con interés en una llamada rápida?\n\nCatalina`,
+    },
+    { num:3, day:14,
+      note:'Breakup latino — con calidez y autenticidad',
+      sEN:'Re: [Event Name] — last note, with respect',
+      sES:'Re: [Nombre del Evento] — último mensaje, con respeto',
+      bEN:`Hi [First Name],\n\nLast follow-up, I promise.\n\nIf the timing doesn't work for [Event Name], completely understood. The Carvajalino Sisters will continue building presence in the Latino professional community regardless — that's their home.\n\nIf a need comes up — keynote, bilingual workshop, MC, panel — I hope you'll think of them.\n\ncarvajalinos.com | [Email]\n\nHasta pronto,\nCatalina`,
+      bES:`Hola [Nombre],\n\nÚltimo seguimiento, lo prometo.\n\nSi el momento no funciona para [Nombre del Evento], completamente entendido. Las Hermanas Carvajalino seguirán construyendo presencia en la comunidad profesional latina de todas formas — esa es su casa.\n\nSi surge una necesidad — keynote, workshop bilingüe, MC, panel — espero que pienses en ellas.\n\ncarvajalinos.com | [Email]\n\nHasta pronto,\nCatalina`,
+    },
+  ]
+};
+
 
 function fallback(o){
   return{contactName:o.dm,contactTitle:o.dm,contactEmail:'Search: "'+o.sq+'"',contactLinkedIn:'',website:'',confidence:'low',
