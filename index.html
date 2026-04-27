@@ -544,6 +544,12 @@ function navTo(cat,btn){
   const ct=document.getElementById('ctab-'+cat);
   if(ct)ct.classList.add('active');
   curCat=cat;
+  if(cat==='export') xRender();
+  if(cat==='search') renderContacts();
+  if(cat==='pipeline') plRender();
+  if(cat==='brand') brandRender();
+  if(cat==='nextgen') ngRender();
+  if(cat==='ideas') renderIdeas();
 }
 
 function showInfo(id){
@@ -1584,16 +1590,7 @@ function xExport(){
   toast('✅ Exportando '+opps.length+' contactos...');
 }
 
-const _xOrigNavTo = navTo;
-navTo = function(cat,btn){
-  _xOrigNavTo(cat,btn);
-  if(cat==='export') xRender();
-  if(cat==='search') renderContacts();
-  if(cat==='pipeline') plRender();
-  if(cat==='brand') brandRender();
-  if(cat==='nextgen') ngRender();
-  if(cat==='ideas') renderIdeas();
-};
+// navTo logic inlined above
 
 const STAGES = [
   {id:'warm_lead',    label:'🔥 Warm Lead',      color:'#F59E0B', bg:'rgba(245,158,11,.12)'},
